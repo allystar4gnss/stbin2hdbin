@@ -131,6 +131,12 @@
 #include "stbin_gen_structs.h"
 #include "stbin_gen_checks.h"
 
+//HDBIN
+#if defined(HDBIN)
+extern void hdbin_input_processing(void);
+extern void hdbin_output_processing(void);
+#endif
+
 /*Modifies added to merge the binary protocol in gpsstdpkg SDK*/
 
 typedef enum msg_state_e
@@ -858,8 +864,14 @@ gnss_error_t stbin_init_p( gpOS_partition_t *part, stbin_inout_t read_func, stbi
   stbin_ioport_write = write_func;
   stbin_msg_list[0] = msg_list[0];
   stbin_msg_list[1] = msg_list[1];
+
+#if defined(HDBIN)
+  nmea_set_external_cmdif_callback((nmea_external_cmdif_callback_t)hdbin_input_processing);
+  nmea_set_external_outmsg_callback((nmea_external_outmsg_callback_t)hdbin_output_processing);
+#else
   nmea_set_external_cmdif_callback((nmea_external_cmdif_callback_t)stbin_input_processing);
   nmea_set_external_outmsg_callback((nmea_external_outmsg_callback_t)stbin_output_processing);
+#endif
 
   return(GNSS_NO_ERROR);
 }
