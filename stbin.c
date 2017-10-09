@@ -48,11 +48,11 @@
 #include "gpOS.h"
 
 #include "stbin.h"
-#include "gnss_nvmids.h"
+//#include "gnss_nvmids.h"
 #include "gnss_api.h"
 #include "gnssapp_plugins.h"
 #include "gnss_debug.h"
-#include "geom.h"
+//#include "geom.h"
 
 #if !defined(__linux__) && !defined(_WIN32_WCE)
 #include "svc_ver.h"
@@ -132,7 +132,8 @@
 #include "stbin_gen_checks.h"
 
 //HDBIN
-#if defined(HDBIN)
+#define HDBIN
+#if defined (HDBIN)
 extern void hdbin_input_processing(void);
 extern void hdbin_output_processing(void);
 #endif
@@ -570,7 +571,7 @@ tInt    stbin_dec_return_elaborate_notch_freq_forAPI (tUChar, tUChar, tInt);
 /*==========================================================================*/
 /*Decode module  stbin_exec.c *///Communication Application Layer
 /*==========================================================================*/
-static void                   stbin_exec_init_cold_start              (tU8);//decoding setting init cold and calls the APIs
+void                          stbin_exec_init_cold_start              (tU8);//decoding setting init cold and calls the APIs
 static void                   execute_fwupgrade                       (void);
 
 
@@ -743,8 +744,8 @@ static void stbin_output_read_errors         (const stbin_output_msg_parms *parm
 //changes necessary for porting stbin in sdk gpsstdpkg
 static void         send_msg_to_uart_p                                       (const tUChar *, const tInt); //
 
-static stbin_inout_t         stbin_ioport_read;
-static stbin_inout_t         stbin_ioport_write;
+stbin_inout_t         stbin_ioport_read;
+stbin_inout_t         stbin_ioport_write;
 static gpOS_semaphore_t *    stbin_outmsg_access;
 static boolean_t             stbin_out_processing_enabled = FALSE;
 static boolean_t             stbin_out_msg_on_off = TRUE;
@@ -865,9 +866,10 @@ gnss_error_t stbin_init_p( gpOS_partition_t *part, stbin_inout_t read_func, stbi
   stbin_msg_list[0] = msg_list[0];
   stbin_msg_list[1] = msg_list[1];
 
-#if defined(HDBIN)
+#if defined (HDBIN)
   nmea_set_external_cmdif_callback((nmea_external_cmdif_callback_t)hdbin_input_processing);
-  nmea_set_external_outmsg_callback((nmea_external_outmsg_callback_t)hdbin_output_processing);
+  //TODO:
+  //nmea_set_external_outmsg_callback((nmea_external_outmsg_callback_t)hdbin_output_processing);
 #else
   nmea_set_external_cmdif_callback((nmea_external_cmdif_callback_t)stbin_input_processing);
   nmea_set_external_outmsg_callback((nmea_external_outmsg_callback_t)stbin_output_processing);
@@ -1036,13 +1038,13 @@ void stbin_read_binary_msg(tUChar *msg)
         	{
             if( stbin_ioport_read((tChar *)msg, len_temp_, &frame_time_limit) == len_temp_)  /*get payload+CK from message rx*/
             {
-              //GPS_DEBUG_MSG(("STBIN READ checksum\r\n"));
+              GPS_DEBUG_MSG(("STBIN READ checksum\r\n"));
               cs_header(parms.class_Id, parms.msg_Id, Bytes5_6_, &cur_cs);
               cs_add_data(msg, msg_length_, &cur_cs);
               if(cs_compare(&cur_cs, msg[len_temp_-NUM_BYTE_CHK], msg[len_temp_-VAL_ONE]) == STBIN_OK)
               {
-//                GPS_DEBUG_MSG(("STBIN Good checksum buf@=0x%X rb=0x%X\n\r", (tU32)(parms.out_buf),
-//                                (tU32)MsgToSendResponse.buffer));
+                GPS_DEBUG_MSG(("STBIN Good checksum buf@=0x%X rb=0x%X\n\r", (tU32)(parms.out_buf),
+                                (tU32)MsgToSendResponse.buffer));
                 /*CK ok!!! msg_lenght is only payload len - */
                 DecodeMsg_Manager(msg_length_, msg, &parms );/*Decode message Terminate ok.*/
                 msg_sync_flag = FALSE;
@@ -1936,7 +1938,7 @@ static stbin_status_t  stbin_exec_init_cold(tU16 length, tUChar *msg, const stbi
 }
 
 /*{{{  nmea_init_cold_start()*/
-static void stbin_exec_init_cold_start(tU8 type)
+void stbin_exec_init_cold_start(tU8 type)
 {
 	gpOS_task_delay(1000000);
 	if ((type & 0x1U) != 0U)
@@ -2508,7 +2510,7 @@ static stbin_status_t stbin_exec_nvm_item_inv(tU16 len, tUChar *msg, const stbin
 
   if(result == STBIN_OK)
   {
-    if((req->sat_id != 0U)&&((req->nvm_id==GNSS_NVMID_ALMANACS)||(req->nvm_id==GNSS_NVMID_EPHEMERIDES)))
+    if((req->sat_id != 0U)&&((req->nvm_id== 1 /*GNSS_NVMID_ALMANACS*/)||(req->nvm_id==2/*GNSS_NVMID_EPHEMERIDES*/)))
     {
 
       idx  = GNSS_NAV_SAT_ID_TO_GNSSLIB_ID(req->sat_id);
@@ -5879,7 +5881,7 @@ static void stbin_output_exec_svinfo (const stbin_output_msg_parms *parms)
     SatVehiculeInfo->elev     = RESERVED_U8;
     SatVehiculeInfo->azim     = RESERVED_U16;
     SatVehiculeInfo->cno      = RESERVED_U8;
-    SatVehiculeInfo->quality  = CHAN_STATE_LOST;  // By default, can be updated for tracked sats
+    SatVehiculeInfo->quality  = -1 /*CHAN_STATE_LOST*/;  // By default, can be updated for tracked sats
     SatVehiculeInfo->chn      = TRK_CHANNELS_SUPPORTED +1;
 
     //If Satellite is SBAS
@@ -6009,6 +6011,7 @@ static void stbin_output_exec_svinfo (const stbin_output_msg_parms *parms)
 
 static void stbin_output_exec_dgps(const stbin_output_msg_parms *parms)
 {
+#ifdef RTCM_LINKED
 	tInt number_of_sats, station_health;
   PREPARE_OUTPUT_MESSAGE(parms->out_buf, outputprocess_dgps_t, statusDgps, rspSize);
   frame_qualifier_t frameQ;
@@ -6036,10 +6039,12 @@ static void stbin_output_exec_dgps(const stbin_output_msg_parms *parms)
 
   frameQ = frame_ack_qualifier(parms->class_Id, parms->msg_Id, rspSize, ONLY_ONE_FRAME);
   outputprocess_dgps_send(statusDgps, frameQ );
+#endif
 }
 
 static void stbin_output_exec_dgps_data(const stbin_output_msg_parms *parms)
 {
+#ifdef RTCM_LINKED
   dgps_sat_data_diff_t     diffDataSat;
   tInt                         number_of_sats, i, gnss_iode;
   frame_status_t          frame_seq;
@@ -6089,6 +6094,7 @@ static void stbin_output_exec_dgps_data(const stbin_output_msg_parms *parms)
     frameQ = frame_ack_qualifier(parms->class_Id, parms->msg_Id, rspSize, frame_seq);
     outputprocess_dgps_data_send(dataDgps, frameQ );
   }
+#endif
 }
 
 static void stbin_output_exec_ts(const stbin_output_msg_parms *parms)

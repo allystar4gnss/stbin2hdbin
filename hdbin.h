@@ -9,9 +9,6 @@ void hdbin_output_processing(void);
 //entry point module
 void hdbin_read_binary_msg(tUChar *);
 
-//CFG
-hdbin_status_t hd_decode_cfg_req(tU16, tUChar *, const hdbin_req_msg_parms *);
-
 typedef struct __hdbin_req_msg_parms {
   tUChar *  out_buf;
   tUChar    group_Id;
@@ -24,6 +21,9 @@ typedef struct __hdbin_chkSum_t {
 } hdbin_chkSum_t;
 
 typedef tU8	hdbin_status_t;
+
+//CFG
+hdbin_status_t hd_decode_cfg_req(tU16, tUChar *, const hdbin_req_msg_parms *);
 
 //Start Sequence
 #define SYNC_BYTE_1	0xF1U

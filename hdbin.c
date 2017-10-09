@@ -8,12 +8,12 @@
 
 #include "gpOS.h"
 
-#include "hdbin.h"
-#include "gnss_nvmids.h"
+//#include "hdbin.h"
+//#include "gnss_nvmids.h"
 #include "gnss_api.h"
 #include "gnssapp_plugins.h"
 #include "gnss_debug.h"
-#include "geom.h"
+//#include "geom.h"
 
 #if !defined(__linux__) && !defined(_WIN32_WCE)
 #include "svc_ver.h"
@@ -97,6 +97,18 @@
 #define NUM_BYTE_LEN	0x02U
 #define NUM_BYTE_CHK	0x02U
 
+#define ERROR    -1
+#define ONE_BYTE 0x01U
+#define TWO_BYTE 0x02U
+#define THREE_BYTE 0x03U
+#define EIGHT_BYTE 0X08U
+#define ON  1U
+#define OFF 0U
+#define FIRST_BYTE 0
+#define VAL_NULL   OFF
+#define VAL_ONE    ON
+#define VAL_100    100
+
 typedef enum msg_state_e
 {
   START_SEQUENCE_DETECTION          = 0,
@@ -108,6 +120,9 @@ typedef enum msg_state_e
   ERROR_MESSAGE_CORRUPTED           = 6
 } msg_state_t;
 
+static boolean_t   msg_sync_flag = FALSE;
+static msg_state_t msg_state = START_SEQUENCE_DETECTION;
+
 typedef struct stbin_header_s3
 {
   tUInt padding_sync;           /* first 2 bytes are not transmitted */
@@ -117,6 +132,24 @@ typedef struct stbin_header_s3
 #define HDBIN_MAX_PAYLOAD_SIZE 950U
 #define HDBIN_MAX_BUFFER_SIZE  (HDBIN_MAX_PAYLOAD_SIZE+sizeof(stbin_header_t3)+sizeof(tDouble))
 
+/*=============================================================
+ * Macro definition for decode the field bytes defined
+ * in the frame rx, in order to  compose the fields used in the
+ * GNSS API
+ * ============================================================*/
+#define TRUNC_FFFF 0xFFFFU
+#define TRUNC_FF00 0xFF00U
+#define TRUNC_FF   0xFFU
+#define SHIFT      0x08U
+
+#define RETURN_HB(val)            (tChar)(val >> SHIFT)
+#define RETURN_LB(value)          (value & TRUNC_FF)
+#define RETURN_USHORT(valHB, valLB) (tU16)((((tU16)valHB << SHIFT) & TRUNC_FF00)|(valLB & TRUNC_FF))
+#define RADIANS                   (PI / 180.0)
+#define I4  32
+#define I16 16
+#define I32 I4
+
 typedef union {
   tUChar buffer[HDBIN_MAX_BUFFER_SIZE];
   tDouble dummy;  /* This field force 8byte-alignment of buffer */
@@ -125,6 +158,13 @@ typedef union {
 //Decode manager: HD parse
 static void DecodeHdMsg_Manager               (tU16, tUChar *, const hdbin_req_msg_parms *);
 static stbin_status_t base_DecodeHdMsg_Manager(tU16, tUChar *, const hdbin_req_msg_parms *);
+
+// if frame does is not complete in this time window, drop it
+#define STBIN_FRAME_TIMEOUT_TICKS (10.0*NAV_CPU_TICKS_PER_SECOND)
+
+//extern
+extern void stbin_exec_init_cold_start(tU8);
+extern tU32 stbin_ioport_read( tChar *, tU32, gpOS_clock_t*);
 
 //-------------------------------------------------------------------------------------//
 static hdbin_status_t hd_cs_compare(hdbin_chkSum_t *cs_a, uint8 cs_0_b, uint8 cs_1_b)
@@ -235,7 +275,7 @@ void hdbin_read_binary_msg(tUChar *msg)
   hdbin_buffer_io_type MsgToSendResponse;
   tUChar  Len_field[NUM_BYTE_LEN];
   tU16    msg_length_ = 0,len_temp_, Bytes5_6_ = 0;
-  tUint i;
+  tU32 i;
 
   parms.out_buf = &(MsgToSendResponse.buffer[sizeof(stbin_header_t3)]);
   do
@@ -347,7 +387,7 @@ void hdbin_read_binary_msg(tUChar *msg)
               }
               else
               {
-                GPS_DEBUG_MSG(("\r\nHDBIN wrong checksum cs_0=0x%x cs_1=0x%x\r\n",cur_cs->cs_0,cur_cs->cs_1));
+                GPS_DEBUG_MSG(("\r\nHDBIN wrong checksum cs_0=0x%x cs_1=0x%x\r\n",cur_cs.cs_0,cur_cs.cs_1));
                 /*CK Not ok --> Sending NACK*/
                 /*restore START_SEQUENCE_DETECTION conditions Decode message Terminate error */
                 msg_sync_flag = FALSE;
