@@ -131,9 +131,7 @@
 #include "stbin_gen_structs.h"
 #include "stbin_gen_checks.h"
 
-//HDBIN
-#define HDBIN
-#if defined (HDBIN)
+#if defined(HDBIN_LINKED)
 extern void hdbin_input_processing(void);
 extern void hdbin_output_processing(void);
 #endif
@@ -866,7 +864,9 @@ gnss_error_t stbin_init_p( gpOS_partition_t *part, stbin_inout_t read_func, stbi
   stbin_msg_list[0] = msg_list[0];
   stbin_msg_list[1] = msg_list[1];
 
-#if defined (HDBIN)
+  GPS_DEBUG_MSG(("[gnssapp] stbin init start\r\n"));
+
+#if defined(HDBIN_LINKED)
   nmea_set_external_cmdif_callback((nmea_external_cmdif_callback_t)hdbin_input_processing);
   //TODO:
   //nmea_set_external_outmsg_callback((nmea_external_outmsg_callback_t)hdbin_output_processing);
